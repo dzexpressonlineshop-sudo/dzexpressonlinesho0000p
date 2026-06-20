@@ -1,5 +1,5 @@
 /* ====================================================================
-   منطق صفحة الطلب: اختيار الولاية، حساب التوصيل، إرسال الطلب
+   منطق صفحة الطلب: اختيار الولاية، حساب التوصيل، إرسال الطلب (متوافق مع SheetDB)
 ==================================================================== */
 
 function formatPrice(n){
@@ -197,36 +197,51 @@ function onSubmit(e){
   const deliveryLabel = selectedDeliveryType === 'office' ? 'توصيل للمكتب' : 'توصيل لباب الدار';
   const total = selectedProduct.price + selectedDeliveryPrice;
 
-  const payload = {
-    orderId: orderId,
-    date: new Date().toISOString(),
-    productName: selectedProduct.name,
-    productPrice: selectedProduct.price,
-    wilaya: selectedWilaya.name,
-    deliveryType: deliveryLabel,
-    deliveryPrice: selectedDeliveryPrice,
-    total: total,
-    customerName: document.getElementById('custName').value.trim(),
-    phone: document.getElementById('custPhone').value.trim()
+  // تهيئة كائن البيانات بأسماء أعمدة واضحة لجدول جوجل
+  const orderPayload = {
+    "رقم الطلب": orderId,
+    "التاريخ": new Date().toLocaleString('fr-FR'), // تنسيق وقت مناسب للجزائر
+    "المنتج": selectedProduct.name,
+    "سعر المنتج": selectedProduct.price,
+    "الولاية": selectedWilaya.name,
+    "نوع التوصيل": deliveryLabel,
+    "سعر التوصيل": selectedDeliveryPrice,
+    "المبلغ الإجمالي": total,
+    "اسم الزبون": document.getElementById('custName').value.trim(),
+    "رقم الهاتف": document.getElementById('custPhone').value.trim()
   };
 
   if (!CONFIG.APPS_SCRIPT_URL){
-    // لم يتم ربط Google Sheet بعد — يعرض نجاح محلي فقط ليتمكن صاحب المتجر من تجربة الموقع
-    console.warn('CONFIG.APPS_SCRIPT_URL غير مهيأ. راجع README.md لربط الموقع بـ Google Sheet.');
+    console.warn('CONFIG.APPS_SCRIPT_URL غير مهيأ. تم عرض نجاح محلي للتجربة.');
     showSuccess(orderId);
     return;
   }
 
+  // إرسال الطلب إلى SheetDB بصيغة JSON مغلفة داخل مصفوفة data
   fetch(CONFIG.APPS_SCRIPT_URL, {
     method: 'POST',
-    mode: 'no-cors',
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify(payload)
+    headers: { 
+      'Accept': 'application/json',
+      'Content-Type': 'application/json' 
+    },
+    body: JSON.stringify({ data: [orderPayload] })
   })
-  .then(() => {
-    showSuccess(orderId);
+  .then(response => {
+    if (!response.ok) {
+       throw new Error('Network response was not ok');
+    }
+    return response.json();
   })
-  .catch(() => {
+  .then(resData => {
+    // التحقق من نجاح الإدخال عبر حقل created الذي توفره SheetDB
+    if (resData.created === 1) {
+       showSuccess(orderId);
+    } else {
+       throw new Error('SheetDB did not create the row');
+    }
+  })
+  .catch(error => {
+    console.error('Error:', error);
     submitBtn.disabled = false;
     submitLabel.textContent = 'تأكيد الطلبية';
     document.getElementById('submitError').classList.remove('hidden');
