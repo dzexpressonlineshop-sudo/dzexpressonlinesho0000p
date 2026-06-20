@@ -1,53 +1,47 @@
-/* ====================================================================
-   Code.gs
-   هذا الكود يُلصق داخل Google Apps Script (شرح الخطوات في README.md)
-   وظيفته: استقبال الطلبيات من الموقع وتسجيلها في Google Sheet تلقائياً
-==================================================================== */
-
-function doPost(e) {
-  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Orders');
-
-  if (!sheet) {
-    sheet = SpreadsheetApp.getActiveSpreadsheet().insertSheet('Orders');
+function doGet(e) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName("product");
+  var data = sheet.getDataRange().getValues();
+  var products = [];
+  
+  for (var i = 1; i < data.length; i++) {
+    products.push({
+      id: data[i][0].toString(),
+      name: data[i][1],
+      price: Number(data[i][2]),
+      description: data[i][3],
+      image: data[i][4] || ""
+    });
   }
-
-  if (sheet.getLastRow() === 0) {
-    sheet.appendRow([
-      'تاريخ الطلب',
-      'رقم الطلب',
-      'المنتج',
-      'سعر المنتج',
-      'الولاية',
-      'نوع التوصيل',
-      'سعر التوصيل',
-      'المجموع الكلي',
-      'اسم الزبون',
-      'رقم الهاتف'
-    ]);
-  }
-
-  var data = JSON.parse(e.postData.contents);
-
-  sheet.appendRow([
-    new Date(),
-    data.orderId,
-    data.productName,
-    data.productPrice,
-    data.wilaya,
-    data.deliveryType,
-    data.deliveryPrice,
-    data.total,
-    data.customerName,
-    data.phone
-  ]);
-
-  return ContentService
-    .createTextOutput(JSON.stringify({ status: 'ok' }))
+  
+  return ContentService.createTextOutput(JSON.stringify(products))
     .setMimeType(ContentService.MimeType.JSON);
 }
 
-function doGet(e) {
-  return ContentService
-    .createTextOutput(JSON.stringify({ status: 'الخدمة تعمل بنجاح ✅' }))
-    .setMimeType(ContentService.MimeType.JSON);
+function doPost(e) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName("orders");
+  
+  try {
+    var params = JSON.parse(e.postData.contents);
+    
+    sheet.appendRow([
+      params.orderId,
+      params.date,
+      params.productName,
+      params.productPrice,
+      params.wilaya,
+      params.deliveryType,
+      params.deliveryPrice,
+      params.totalGrand,
+      params.custName,
+      params.custPhone
+    ]);
+    
+    return ContentService.createTextOutput(JSON.stringify({"status": "success"}))
+      .setMimeType(ContentService.MimeType.JSON);
+  } catch(error) {
+    return ContentService.createTextOutput(JSON.stringify({"status": "error", "message": error.toString()}))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
 }
