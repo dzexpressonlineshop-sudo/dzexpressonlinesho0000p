@@ -3,8 +3,7 @@
 ==================================================================== */
 const CONFIG = {
   storeName: "DZ Express Online Shop",
-  // رابط Google Apps Script Web App (شرح الحصول عليه في README.md)
-  // مثال: "https://script.google.com/macros/s/AKfycb.../exec"
-  APPS_SCRIPT_URL: "",
+  // رابط SheetDB الخاص بك
+  APPS_SCRIPT_URL: "https://sheetdb.io/api/v1/u2bi74veb32hq",
   whatsapp: "" // رقم واتساب اختياري، مثال: "213555000000"
 };
