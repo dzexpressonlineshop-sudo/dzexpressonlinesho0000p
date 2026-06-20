@@ -1,257 +1,270 @@
-/* ====================================================================
-   منطق صفحة الطلب: اختيار الولاية، حساب التوصيل، إرسال الطلب (متوافق مع SheetDB)
-==================================================================== */
-
-function formatPrice(n){
-  return n.toLocaleString('en-US') + ' دج';
-}
-
-function getQueryParam(name){
-  const params = new URLSearchParams(window.location.search);
-  return params.get(name);
-}
-
-function generateOrderId(){
-  const date = new Date();
-  const stamp = date.getFullYear().toString().slice(2) +
-                String(date.getMonth()+1).padStart(2,'0') +
-                String(date.getDate()).padStart(2,'0');
-  const rand = Math.floor(1000 + Math.random()*9000);
-  return `DZ-${stamp}-${rand}`;
-}
-
-let selectedProduct = null;
-let selectedWilaya = null;
-let selectedDeliveryType = null; // 'office' | 'home'
-let selectedDeliveryPrice = 0;
-
-function init(){
-  const id = getQueryParam('id');
-  selectedProduct = PRODUCTS.find(p => p.id === id) || PRODUCTS[0];
-
-  if (!selectedProduct){
-    document.getElementById('orderView').innerHTML = '<p>المنتج غير موجود.</p>';
-    return;
-  }
-
-  renderSummary();
-  fillWilayaSelect();
-  bindEvents();
-}
-
-function renderSummary(){
-  const el = document.getElementById('productSummary');
-  el.innerHTML = `
-    <div class="media">${getProductMedia(selectedProduct)}</div>
-    <div>
-      <h2>${selectedProduct.name}</h2>
-      <span class="price">${formatPrice(selectedProduct.price)}</span>
-    </div>
-  `;
-}
-
-function fillWilayaSelect(){
-  const select = document.getElementById('custWilaya');
-  WILAYAS.forEach(w => {
-    const opt = document.createElement('option');
-    opt.value = w.code;
-    opt.textContent = `${String(w.code).padStart(2,'0')} - ${w.name}`;
-    select.appendChild(opt);
-  });
-}
-
-function bindEvents(){
-  document.getElementById('custWilaya').addEventListener('change', onWilayaChange);
-  document.getElementById('orderForm').addEventListener('submit', onSubmit);
-}
-
-function onWilayaChange(e){
-  const code = parseInt(e.target.value, 10);
-  selectedWilaya = WILAYAS.find(w => w.code === code) || null;
-  selectedDeliveryType = null;
-  selectedDeliveryPrice = 0;
-  renderDeliveryOptions();
-  updateTotals();
-}
-
-function renderDeliveryOptions(){
-  const area = document.getElementById('deliveryArea');
-
-  if (!selectedWilaya){
-    area.innerHTML = `<span class="hint">اختر الولاية أولاً ليظهر لك سعر التوصيل</span>`;
-    return;
-  }
-
-  if (selectedWilaya.office === null && selectedWilaya.home === null){
-    area.innerHTML = `<div class="delivery-unavailable">عذراً، التوصيل غير متوفر حالياً لولاية ${selectedWilaya.name}</div>`;
-    return;
-  }
-
-  let html = '<div class="delivery-options">';
-
-  if (selectedWilaya.office !== null){
-    html += `
-      <div class="delivery-card" data-type="office" data-price="${selectedWilaya.office}">
-        <div class="label">📦 توصيل للمكتب</div>
-        <div class="amount">${selectedWilaya.office === 0 ? 'مجاني' : formatPrice(selectedWilaya.office)}</div>
-      </div>`;
-  }
-  if (selectedWilaya.home !== null){
-    html += `
-      <div class="delivery-card" data-type="home" data-price="${selectedWilaya.home}">
-        <div class="label">🏠 توصيل لباب الدار</div>
-        <div class="amount">${formatPrice(selectedWilaya.home)}</div>
-      </div>`;
-  }
-  html += '</div>';
-  area.innerHTML = html;
-
-  area.querySelectorAll('.delivery-card').forEach(card => {
-    card.addEventListener('click', () => {
-      area.querySelectorAll('.delivery-card').forEach(c => c.classList.remove('selected'));
-      card.classList.add('selected');
-      selectedDeliveryType = card.dataset.type;
-      selectedDeliveryPrice = parseInt(card.dataset.price, 10);
-      updateTotals();
-      clearFieldError('fieldDelivery');
-    });
-  });
-}
-
-function updateTotals(){
-  const box = document.getElementById('totalBox');
-  if (!selectedWilaya || selectedDeliveryType === null){
-    box.style.display = 'none';
-    return;
-  }
-  box.style.display = 'flex';
-  const total = selectedProduct.price + selectedDeliveryPrice;
-  document.getElementById('totalProduct').textContent = formatPrice(selectedProduct.price);
-  document.getElementById('totalDelivery').textContent = selectedDeliveryPrice === 0 ? 'مجاني' : formatPrice(selectedDeliveryPrice);
-  document.getElementById('totalGrand').textContent = formatPrice(total);
-}
-
-function setFieldError(fieldId, hasError){
-  const field = document.getElementById(fieldId);
-  field.classList.toggle('invalid', hasError);
-}
-function clearFieldError(fieldId){
-  setFieldError(fieldId, false);
-}
-
-function validatePhone(phone){
-  const digits = phone.replace(/\s+/g,'');
-  return /^0[5-9][0-9]{8}$/.test(digits) || /^0[1-9][0-9]{7,8}$/.test(digits);
-}
-
-function validate(){
-  let valid = true;
-
-  const name = document.getElementById('custName').value.trim();
-  if (!name){
-    setFieldError('fieldName', true);
-    valid = false;
-  } else {
-    clearFieldError('fieldName');
-  }
-
-  const phone = document.getElementById('custPhone').value.trim();
-  if (!validatePhone(phone)){
-    setFieldError('fieldPhone', true);
-    valid = false;
-  } else {
-    clearFieldError('fieldPhone');
-  }
-
-  if (!selectedWilaya){
-    setFieldError('fieldWilaya', true);
-    valid = false;
-  } else {
-    clearFieldError('fieldWilaya');
-  }
-
-  if (selectedWilaya && (selectedWilaya.office === null && selectedWilaya.home === null)){
-    valid = false;
-  } else if (!selectedDeliveryType){
-    setFieldError('fieldDelivery', true);
-    valid = false;
-  } else {
-    clearFieldError('fieldDelivery');
-  }
-
-  return valid;
-}
-
-function onSubmit(e){
-  e.preventDefault();
-  document.getElementById('submitError').classList.add('hidden');
-
-  if (!validate()) return;
-
+document.addEventListener('DOMContentLoaded', () => {
+  const orderForm = document.getElementById('orderForm');
+  const custWilaya = document.getElementById('custWilaya');
+  const deliveryArea = document.getElementById('deliveryArea');
+  const totalBox = document.getElementById('totalBox');
+  const totalProduct = document.getElementById('totalProduct');
+  const totalDelivery = document.getElementById('totalDelivery');
+  const totalGrand = document.getElementById('totalGrand');
   const submitBtn = document.getElementById('submitBtn');
   const submitLabel = document.getElementById('submitLabel');
-  submitBtn.disabled = true;
-  submitLabel.textContent = 'جاري إرسال الطلب...';
+  const submitError = document.getElementById('submitError');
+  const orderView = document.getElementById('orderView');
+  const successView = document.getElementById('successView');
+  const orderIdDisplay = document.getElementById('orderIdDisplay');
+  const productSummary = document.getElementById('productSummary');
 
-  const orderId = generateOrderId();
-  const deliveryLabel = selectedDeliveryType === 'office' ? 'توصيل للمكتب' : 'توصيل لباب الدار';
-  const total = selectedProduct.price + selectedDeliveryPrice;
+  // 1) جلب المنتج المختار من الرابط (URL)
+  const urlParams = new URLSearchParams(window.location.search);
+  const productId = urlParams.get('id');
 
-  // تهيئة كائن البيانات بأسماء أعمدة واضحة لجدول جوجل
-  const orderPayload = {
-    "رقم الطلب": orderId,
-    "التاريخ": new Date().toLocaleString('fr-FR'), // تنسيق وقت مناسب للجزائر
-    "المنتج": selectedProduct.name,
-    "سعر المنتج": selectedProduct.price,
-    "الولاية": selectedWilaya.name,
-    "نوع التوصيل": deliveryLabel,
-    "سعر التوصيل": selectedDeliveryPrice,
-    "المبلغ الإجمالي": total,
-    "اسم الزبون": document.getElementById('custName').value.trim(),
-    "رقم الهاتف": document.getElementById('custPhone').value.trim()
-  };
-
-  if (!CONFIG.APPS_SCRIPT_URL){
-    console.warn('CONFIG.APPS_SCRIPT_URL غير مهيأ. تم عرض نجاح محلي للتجربة.');
-    showSuccess(orderId);
+  // إذا لم يتم تحديد منتج، الرجوع للرئيسية
+  if (!productId) {
+    window.location.href = 'index.html';
     return;
   }
 
-  // إرسال الطلب إلى SheetDB بصيغة JSON مغلفة داخل مصفوفة data
-  fetch(CONFIG.APPS_SCRIPT_URL, {
-    method: 'POST',
-    headers: { 
-      'Accept': 'application/json',
-      'Content-Type': 'application/json' 
-    },
-    body: JSON.stringify({ data: [orderPayload] })
-  })
-  .then(response => {
-    if (!response.ok) {
-       throw new Error('Network response was not ok');
+  let selectedProduct = null;
+
+  // دالة لعرض تفاصيل المنتج في بطاقة الملخص
+  function displayProductSummary() {
+    if (!selectedProduct) return;
+    
+    let imgHtml = selectedProduct.image 
+      ? `<img src="${selectedProduct.image}" alt="${selectedProduct.name}">` 
+      : `<div class="p-icon-placeholder">${getIconHtml('package')}</div>`;
+
+    productSummary.innerHTML = `
+      <div class="summary-product">
+        <div class="summary-img">${imgHtml}</div>
+        <div class="summary-info">
+          <h3>${selectedProduct.name}</h3>
+          <p class="summary-price">${selectedProduct.price} دج</p>
+        </div>
+      </div>
+    `;
+    totalProduct.textContent = `${selectedProduct.price} دج`;
+    updateTotals();
+  }
+
+  // انتظام تحميل المنتجات (تأكد من قراءتها من الـ Sheet أولاً)
+  async function initOrderPage() {
+    if (typeof loadProductsFromSheet === 'function') {
+      products = await loadProductsFromSheet();
     }
-    return response.json();
-  })
-  .then(resData => {
-    // التحقق من نجاح الإدخال عبر حقل created الذي توفره SheetDB
-    if (resData.created === 1) {
-       showSuccess(orderId);
-    } else {
-       throw new Error('SheetDB did not create the row');
+    
+    selectedProduct = products.find(p => p.id === productId);
+    
+    if (!selectedProduct) {
+      alert('المنتج غير موجود!');
+      window.location.href = 'index.html';
+      return;
     }
-  })
-  .catch(error => {
-    console.error('Error:', error);
-    submitBtn.disabled = false;
-    submitLabel.textContent = 'تأكيد الطلبية';
-    document.getElementById('submitError').classList.remove('hidden');
+    
+    displayProductSummary();
+    initWilayas();
+  }
+
+  // 2) تعبئة قائمة الولايات
+  function initWilayas() {
+    if (typeof wilayas === 'undefined') return;
+    
+    wilayas.forEach(w => {
+      const opt = document.createElement('option');
+      opt.value = w.id;
+      opt.textContent = `${w.id} - ${w.name}`;
+      custWilaya.appendChild(opt);
+    });
+  }
+
+  // 3) عند تغيير الولاية تظهر خيارات التوصيل وأسعارها
+  custWilaya.addEventListener('change', () => {
+    const wilayaId = custWilaya.value;
+    deliveryArea.innerHTML = '';
+    
+    if (!wilayaId || typeof wilayas === 'undefined') {
+      deliveryArea.innerHTML = '<span class="hint">اختر الولاية أولاً ليظهر لك سعر التوصيل</span>';
+      totalBox.style.display = 'none';
+      return;
+    }
+
+    const selectedWilaya = wilayas.find(w => w.id == wilayaId);
+    if (!selectedWilaya) return;
+
+    // إنشاء خيارات التوصيل (منزل / مكتب)
+    let homeChecked = 'checked';
+    let deskChecked = '';
+    
+    // إذا كان التوصيل للمكتب فقط متوفر
+    if (selectedWilaya.home === false) {
+      homeChecked = '';
+      deskChecked = 'checked';
+    }
+
+    let html = '';
+    
+    if (selectedWilaya.home !== false) {
+      html += `
+        <label class="delivery-option">
+          <input type="radio" name="deliveryType" value="home" data-price="${selectedWilaya.home}" ${homeChecked}>
+          <div class="d-text">
+            <span class="d-title">توصيل للمنزل (${selectedWilaya.home} دج)</span>
+            <span class="d-desc">الدفع عند الاستلام في باب دارك</span>
+          </div>
+        </label>
+      `;
+    }
+
+    if (selectedWilaya.desk !== false) {
+      html += `
+        <label class="delivery-option">
+          <input type="radio" name="deliveryType" value="desk" data-price="${selectedWilaya.desk}" ${deskChecked}>
+          <div class="d-text">
+            <span class="d-title">استلام من مكتب شركة التوصيل (${selectedWilaya.desk} دج)</span>
+            <span class="d-desc">تذهب أنت للمكتب وتستلم سلعتك</span>
+          </div>
+        </label>
+      `;
+    }
+
+    deliveryArea.innerHTML = html;
+    totalBox.style.display = 'block';
+    updateTotals();
+
+    // إضافة مستمع حدث عند تغيير خيار التوصيل
+    const radios = deliveryArea.querySelectorAll('input[name="deliveryType"]');
+    radios.forEach(r => r.addEventListener('change', updateTotals));
   });
-}
 
-function showSuccess(orderId){
-  document.getElementById('orderView').classList.add('hidden');
-  document.getElementById('successView').classList.remove('hidden');
-  document.getElementById('orderIdDisplay').textContent = 'رقم الطلب: ' + orderId;
-}
+  // 4) تحديث المجموع الإجمالي وسعر التوصيل
+  function updateTotals() {
+    if (!selectedProduct || !custWilaya.value) return;
 
-document.addEventListener('DOMContentLoaded', init);
+    const checkedRadio = deliveryArea.querySelector('input[name="deliveryType"]:checked');
+    if (!checkedRadio) return;
+
+    const delPrice = Number(checkedRadio.dataset.price);
+    const prodPrice = Number(selectedProduct.price);
+    const grandTotal = prodPrice + delPrice;
+
+    totalDelivery.textContent = `${delPrice} دج`;
+    totalGrand.textContent = `${grandTotal} دج`;
+  }
+
+  // 5) توليد رقم طلب عشوائي ومميز للجزائر
+  function generateOrderId() {
+    const now = new Date();
+    const day = String(now.getDate()).padStart(2, '0');
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const year = String(now.getFullYear()).slice(-2);
+    const rand = Math.floor(1000 + Math.random() * 9000);
+    return `DZ-${day}${month}${year}-${rand}`;
+  }
+
+  // 6) إرسال الفورم وتأكيد الطلب
+  orderForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    submitError.classList.add('hidden');
+
+    // التحقق من المدخلات (Validation)
+    let isValid = true;
+
+    const custName = document.getElementById('custName');
+    const custPhone = document.getElementById('custPhone');
+
+    // اسم الزبون
+    if (!custName.value.trim()) {
+      custName.parentElement.classList.add('has-error');
+      isValid = false;
+    } else {
+      custName.parentElement.classList.remove('has-error');
+    }
+
+    // رقم الهاتف الجزائري (9 أو 10 أرقام)
+    const phoneVal = custPhone.value.trim();
+    const phoneRegex = /^(05|06|07|02|03|04)\d{8}$|^[567]\d{8}$/;
+    if (!phoneVal || !phoneRegex.test(phoneVal)) {
+      custPhone.parentElement.classList.add('has-error');
+      isValid = false;
+    } else {
+      custPhone.parentElement.classList.remove('has-error');
+    }
+
+    // الولاية
+    if (!custWilaya.value) {
+      custWilaya.parentElement.classList.add('has-error');
+      isValid = false;
+    } else {
+      custWilaya.parentElement.classList.remove('has-error');
+    }
+
+    if (!isValid) return;
+
+    // تعطيل الزر أثناء الإرسال لمنع التكرار
+    submitBtn.disabled = true;
+    submitLabel.style.display = 'none';
+    
+    // إنشاء كائن بيانات الطلب
+    const checkedRadio = deliveryArea.querySelector('input[name="deliveryType"]:checked');
+    const deliveryTypeLabel = checkedRadio.value === 'home' ? 'توصيل للمنزل' : 'مكتب شركة التوصيل';
+    
+    const orderData = {
+      orderId: generateOrderId(),
+      date: new Date().toLocaleString('ar-DZ'),
+      productName: selectedProduct.name,
+      productPrice: selectedProduct.price,
+      wilaya: custWilaya.options[custWilaya.selectedIndex].text,
+      deliveryType: deliveryTypeLabel,
+      deliveryPrice: Number(checkedRadio.dataset.price),
+      totalGrand: Number(selectedProduct.price) + Number(checkedRadio.dataset.price),
+      custName: custName.value.trim(),
+      custPhone: phoneVal
+    };
+
+    // إرسال الطلبية إلى SheetDB في ورقة orders
+    try {
+      const response = await fetch(APPS_SCRIPT_URL + "?sheet=orders", {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          data: [
+            {
+              "رقم الطلب": orderData.orderId,
+              "التاريخ": orderData.date,
+              "المنتج": orderData.productName,
+              "سعر المنتج": orderData.productPrice,
+              "الولاية": orderData.wilaya,
+              "نوع التوصيل": orderData.deliveryType,
+              "سعر التوصيل": orderData.deliveryPrice,
+              "المبلغ الإجمالي": orderData.totalGrand,
+              "اسم الزبون": orderData.custName,
+              "رقم الهاتف": orderData.custPhone
+            }
+          ]
+        })
+      });
+
+      const result = await response.json();
+      
+      // الشيك على نجاح العملية مع SheetDB
+      if (response.ok && (result.created || result.status === "success")) {
+        showSuccess(orderData.orderId);
+      } else {
+        throw new Error("فشل تسجيل الطلب في SheetDB");
+      }
+
+    } catch (error) {
+      console.error("Error submitting order:", error);
+      submitError.classList.remove('hidden');
+      submitBtn.disabled = false;
+      submitLabel.style.display = 'inline';
+    }
+  });
+
+  // دالة لعرض صفحة النجاح بعد الطلب
+  function showSuccess(id) {
+    orderView.classList.add('hidden');
+    success
