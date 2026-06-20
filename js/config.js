@@ -4,6 +4,6 @@
 const CONFIG = {
   storeName: "DZ Express Online Shop",
   // رابط SheetDB الخاص بك
-  APPS_SCRIPT_URL: "https://sheetdb.io/api/v1/u2bi74veb32hq",
+ const APPS_SCRIPT_URL = "https://sheetdb.io/api/v1/u2bi74veb32hq";
   whatsapp: "" // رقم واتساب اختياري، مثال: "213555000000"
 };
