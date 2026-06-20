@@ -1,56 +1,16 @@
-/* ====================================================================
-   قائمة المنتجات
-   عدّل / زِد / احذف منتجات من هنا فقط، الموقع يتحدث تلقائياً
-   icon: اختر واحد من: headphones, watch, charger, backpack, sunglasses, lamp
-   image: (اختياري) رابط صورة حقيقية، إذا تركتها فارغة "" يظهر أيقونة بسيطة بدلها
-==================================================================== */
-const PRODUCTS = [
-  {
-    id: "p1",
-    name: "سماعات بلوتوث لاسلكية",
-    price: 3500,
-    description: "صوت نقي، بطارية تدوم طول النهار، تتوافق مع كل الهواتف.",
-    icon: "headphones",
-    image: ""
-  },
-  {
-    id: "p2",
-    name: "ساعة ذكية رياضية",
-    price: 4500,
-    description: "تتبع نشاطك اليومي ونبضات القلب، شاشة لمس واضحة.",
-    icon: "watch",
-    image: ""
-  },
-  {
-    id: "p3",
-    name: "شاحن سريع متعدد المنافذ",
-    price: 1800,
-    description: "يشحن جهازين في نفس الوقت بسرعة وأمان.",
-    icon: "charger",
-    image: ""
-  },
-  {
-    id: "p4",
-    name: "حقيبة ظهر عصرية",
-    price: 2800,
-    description: "مساحة واسعة ومريحة، مناسبة للجامعة والعمل والسفر.",
-    icon: "backpack",
-    image: ""
-  },
-  {
-    id: "p5",
-    name: "نظارة شمسية كلاسيك",
-    price: 1500,
-    description: "حماية كاملة من أشعة الشمس بتصميم أنيق.",
-    icon: "sunglasses",
-    image: ""
-  },
-  {
-    id: "p6",
-    name: "مصباح مكتبي LED",
-    price: 2200,
-    description: "إضاءة قابلة للتعديل، مريحة للعين، توفر في الكهرباء.",
-    icon: "lamp",
-    image: ""
+// هاد الدالة تجيب المنتجات مباشرة من الـ Google Sheet عبر رابط الـ Apps Script
+async function loadProductsFromSheet() {
+  try {
+    // قراءة الرابط من ملف الـ config
+    const response = await fetch(APPS_SCRIPT_URL);
+    const productsData = await response.json();
+    return productsData;
+  } catch (error) {
+    console.error("خطأ في جلب المنتجات من الـ Sheet:", error);
+    return []; // قائمة فارغة في حال حدوث خطأ
   }
+}
+
+// تعديل بسيط ليتم التوافق مع ملف app.js القديم
+let products = [];
 ];
